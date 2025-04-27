@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Умный To-Do List</title>
+    <style>
+        :root {
+            --bg-color: #f9f9f9;
+            --text-color: #333;
+            --task-bg: white;
+            --container-bg: #ffffff;
+            --button-bg: #e0e0e0;
+            --primary-color: #4a6fa5;
+            --success-color: #4CAF50;
+            --danger-color: #f44336;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #f0f0f0;
+            --task-bg: #2d2d2d;
+            --container-bg: #252525;
+            --button-bg: #444;
+            --primary-color: #5d8bd8;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+            line-height: 1.6;
+        }
+
+        .container {
+            background: var(--container-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        #taskInput {
+            flex-grow: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background: var(--task-bg);
+            color: var(--text-color);
+            transition: border 0.3s;
+        }
+
+        #taskInput:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        button {
+            cursor: pointer;
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        #addBtn {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        #voiceBtn {
+            background: var(--button-bg);
+            color: var(--text-color);
+        }
+
+        #themeToggle {
+            background: var(--button-bg);
+            color: var(--text-color);
+        }
+
+        #taskList {
+            padding: 0;
+            margin: 0;
+        }
+
+        li {
+            cursor: grab;
+            user-select: none;
+            padding: 15px;
+            margin: 10px 0;
+            background: var(--task-bg);
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+            list-style-type: none;
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        li:active {
+            cursor: grabbing;
+        }
+
+        li.dragging {
+            opacity: 0.5;
+            background: var(--button-bg);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .task-content {
+            flex-grow: 1;
+            margin-right: 15px;
+            word-break: break-word;
+        }
+
+        .completed .task-content {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .complete-btn {
+            background: var(--success-color);
+            color: white;
+            padding: 8px;
+            min-width: 36px;
+        }
+
+        .delete-btn {
+            background: var(--danger-color);
+            color: white;
+            padding: 8px;
+            min-width: 36px;
+        }
+
+        @media (max-width: 600px) {
+            .controls {
+                flex-direction: column;
+            }
+            
+            button {
+                justify-content: center;
+            }
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        li {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Умный To-Do List</h1>
+        <div class="controls">
+            <input type="text" id="taskInput" placeholder="Добавьте задачу..." autocomplete="off">
+            <button id="addBtn" onclick="addTask()">➕ Добавить</button>
+            <button id="voiceBtn">🎤 Голос</button>
+            <button id="themeToggle">🌓 Тема</button>
+        </div>
+        <ul id="taskList"></ul>
+    </div>
+
+    <script>
+        // Загрузка при старте
+        document.addEventListener("DOMContentLoaded", () => {
+            loadTheme();
+            loadTasks();
+            setupDragAndDrop();
+            setupEventListeners();
+        });
+
+        // Основные функции
+        function addTask() {
+            const input = document.getElementById("taskInput");
+            const taskText = input.value.trim();
+            if (!taskText) {
+                showAlert("Введите текст задачи!");
+                return;
+            }
+
+            const task = {
+                id: Date.now(),
+                text: taskText,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+
+            saveTask(task);
+            renderTask(task);
+            input.value = "";
+            input.focus();
+        }
+
+        function saveTask(task) {
+            let tasks = getTasks();
+            tasks.push(task);
+            localStorage.setItem("tasks", JSON.stringify(tasks));
+        }
+
+        function getTasks() {
+            return JSON.parse(localStorage.getItem("tasks")) || [];
+        }
+
+        function loadTasks() {
+            const tasks = getTasks();
+            // Сортируем по дате создания (новые сверху)
+            tasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            tasks.forEach(renderTask);
+        }
+
+        function renderTask(task) {
+            const taskList = document.getElementById("taskList");
+            const li = document.createElement("li");
+            li.dataset.id = task.id;
+            li.className = task.completed ? "completed" : "";
+            li.draggable = true;
+
+            li.innerHTML = `
+                <div class="task-content">${escapeHtml(task.text)}</div>
+                <div class="task-actions">
+                    <button class="complete-btn" title="Отметить выполненным">✓</button>
+                    <button class="delete-btn" title="Удалить">❌</button>
+                </div>
+            `;
+
+            li.querySelector(".complete-btn").addEventListener("click", () => toggleComplete(task.id));
+            li.querySelector(".delete-btn").addEventListener("click", () => deleteTask(task.id));
+            taskList.prepend(li); // Новые задачи появляются сверху
+        }
+
+        function toggleComplete(taskId) {
+            let tasks = getTasks();
+            tasks = tasks.map(task => {
+                if (task.id === taskId) {
+                    return { ...task, completed: !task.completed };
+                }
+                return task;
+            });
+            
+            localStorage.setItem("tasks", JSON.stringify(tasks));
+            refreshTasks();
+        }
+
+        function deleteTask(taskId) {
+            let tasks = getTasks();
+            tasks = tasks.filter(task => task.id !== taskId);
+            localStorage.setItem("tasks", JSON.stringify(tasks));
+            refreshTasks();
+        }
+
+        function refreshTasks() {
+            const taskList = document.getElementById("taskList");
+            taskList.innerHTML = "";
+            loadTasks();
+        }
+
+        // Drag-and-Drop
+        let draggedItem = null;
+
+        function setupDragAndDrop() {
+            const taskList = document.getElementById("taskList");
+            
+            taskList.addEventListener("dragstart", (e) => {
+                if (e.target.tagName === "LI") {
+                    draggedItem = e.target;
+                    setTimeout(() => {
+                        e.target.classList.add("dragging");
+                        e.target.style.opacity = "0.4";
+                    }, 0);
+                }
+            });
+
+            taskList.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(taskList, e.clientY);
+                const currentElement = document.querySelector(".dragging");
+                
+                if (!currentElement) return;
+                
+                if (afterElement) {
+                    taskList.insertBefore(currentElement, afterElement);
+                } else {
+                    taskList.appendChild(currentElement);
+                }
+            });
+
+            taskList.addEventListener("dragend", () => {
+                if (draggedItem) {
+                    draggedItem.classList.remove("dragging");
+                    draggedItem.style.opacity = "1";
+                    updateTaskOrder();
+                    draggedItem = null;
+                }
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const elements = [...container.querySelectorAll("li:not(.dragging)")];
+            
+            return elements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { element: child, offset: offset };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function updateTaskOrder() {
+            const tasks = [];
+            document.querySelectorAll("#taskList li").forEach(li => {
+                const taskId = parseInt(li.dataset.id);
+                const task = getTasks().find(t => t.id === taskId);
+                if (task) tasks.push(task);
+            });
+            localStorage.setItem("tasks", JSON.stringify(tasks));
+        }
+
+        // Тёмная тема
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute("data-theme");
+            const newTheme = currentTheme === "dark" ? "light" : "dark";
+            body.setAttribute("data-theme", newTheme);
+            localStorage.setItem("theme", newTheme);
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem("theme") || "light";
+            document.body.setAttribute("data-theme", savedTheme);
+        }
+
+        // Голосовой ввод
+        function setupVoiceInput() {
+            const voiceBtn = document.getElementById("voiceBtn");
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'ru-RU';
+            recognition.interimResults = false;
+            
+            voiceBtn.addEventListener("click", () => {
+                try {
+                    recognition.start();
+                    voiceBtn.textContent = "🎤 Слушаю...";
+                    voiceBtn.style.backgroundColor = "#ff5722";
+                    
+                    recognition.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        document.getElementById("taskInput").value = transcript;
+                        voiceBtn.textContent = "🎤 Голос";
+                        voiceBtn.style.backgroundColor = "";
+                    };
+                    
+                    recognition.onerror = (event) => {
+                        console.error("Ошибка распознавания:", event.error);
+                        voiceBtn.textContent = "🎤 Голос";
+                        voiceBtn.style.backgroundColor = "";
+                        showAlert("Ошибка распознавания голоса");
+                    };
+                    
+                    recognition.onend = () => {
+                        voiceBtn.textContent = "🎤 Голос";
+                        voiceBtn.style.backgroundColor = "";
+                    };
+                } catch (error) {
+                    showAlert("Голосовой ввод не поддерживается в вашем браузере");
+                }
+            });
+        }
+
+        // Вспомогательные функции
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function showAlert(message) {
+            const alert = document.createElement("div");
+            alert.textContent = message;
+            alert.style.position = "fixed";
+            alert.style.bottom = "20px";
+            alert.style.left = "50%";
+            alert.style.transform = "translateX(-50%)";
+            alert.style.backgroundColor = "var(--danger-color)";
+            alert.style.color = "white";
+            alert.style.padding = "10px 20px";
+            alert.style.borderRadius = "5px";
+            alert.style.zIndex = "1000";
+            alert.style.animation = "fadeIn 0.3s";
+            document.body.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.style.animation = "fadeOut 0.3s";
+                setTimeout(() => alert.remove(), 300);
+            }, 3000);
+        }
+
+        // Обработчики событий
+        function setupEventListeners() {
+            document.getElementById("themeToggle").addEventListener("click", toggleTheme);
+            setupVoiceInput();
+            
+            document.getElementById("taskInput").addEventListener("keypress", (e) => {
+                if (e.key === "Enter") addTask();
+            });
+        }
+    </script>
+</body>
+</html>
